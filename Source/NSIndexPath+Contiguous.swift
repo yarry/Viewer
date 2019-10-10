@@ -21,8 +21,38 @@ extension IndexPath {
 
         return indexPaths
     }
+    
+    func indexPaths(_ collectionView: ViewerPresentationSource) -> [IndexPath] {
+        var indexPaths = [IndexPath]()
+
+        let sections = collectionView.numberOfSections
+        for section in 0 ..< sections {
+            let rows = collectionView.numberOfItems(inSection: section)
+            for row in 0 ..< rows {
+                indexPaths.append(IndexPath(row: row, section: section))
+            }
+        }
+
+        return indexPaths
+    }
 
     func next(_ collectionView: UICollectionView) -> IndexPath? {
+        var found = false
+        let indexPaths = self.indexPaths(collectionView)
+        for indexPath in indexPaths {
+            if found {
+                return indexPath
+            }
+
+            if indexPath == self {
+                found = true
+            }
+        }
+
+        return nil
+    }
+    
+    func next(_ collectionView: ViewerPresentationSource) -> IndexPath? {
         var found = false
         let indexPaths = self.indexPaths(collectionView)
         for indexPath in indexPaths {
@@ -51,8 +81,37 @@ extension IndexPath {
 
         return nil
     }
+    
+    func previous(_ collectionView: ViewerPresentationSource) -> IndexPath? {
+        var previousIndexPath: IndexPath?
+        let indexPaths = self.indexPaths(collectionView)
+        for indexPath in indexPaths {
+            if indexPath == self {
+                return previousIndexPath
+            }
+
+            previousIndexPath = indexPath
+        }
+
+        return nil
+    }
 
     static func indexPathForIndex(_ collectionView: UICollectionView, index: Int) -> IndexPath? {
+        var count = 0
+        let sections = collectionView.numberOfSections
+        for section in 0 ..< sections {
+            let rows = collectionView.numberOfItems(inSection: section)
+            if index >= count && index < count + rows {
+                let foundRow = index - count
+                return IndexPath(row: foundRow, section: section)
+            }
+            count += rows
+        }
+
+        return nil
+    }
+    
+    static func indexPathForIndex(_ collectionView: ViewerPresentationSource, index: Int) -> IndexPath? {
         var count = 0
         let sections = collectionView.numberOfSections
         for section in 0 ..< sections {
@@ -73,6 +132,19 @@ extension IndexPath {
         for section in 0 ..< sections {
             if section < self.section {
                 let rows = collectionView.numberOfItems(inSection: section)
+                count += rows
+            }
+        }
+
+        return count + self.row
+    }
+    
+    func totalRow(_ source: ViewerPresentationSource) -> Int {
+        var count = 0
+        let sections = source.numberOfSections
+        for section in 0 ..< sections {
+            if section < self.section {
+                let rows = source.numberOfItems(inSection: section)
                 count += rows
             }
         }

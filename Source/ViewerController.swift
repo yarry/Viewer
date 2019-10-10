@@ -13,6 +13,45 @@ public protocol ViewerControllerDelegate: class {
     func viewerController(_ viewerController: ViewerController, didLongPressViewableAt indexPath: IndexPath)
 }
 
+public protocol ViewerPresentationSource {
+    
+    var numberOfSections: Int { get }
+    func numberOfItems(inSection section: Int) -> Int
+    var indexPathsForVisibleItems: [IndexPath] { get }
+    func scrollToItem(at indexPath: IndexPath, at scrollPosition: UICollectionView.ScrollPosition, animated: Bool)
+    func cellForItem(at indexPath: IndexPath) -> UIView?
+    var presentationView: UIView { get }
+    func frameForItem(at indexPath: IndexPath) -> CGRect?
+    
+}
+
+struct CollectionViewerPresentationSource: ViewerPresentationSource {
+    private unowned var collectionView: UICollectionView
+    init(collectionView: UICollectionView) {
+        self.collectionView = collectionView
+    }
+    
+    var numberOfSections: Int { collectionView.numberOfSections }
+    func numberOfItems(inSection section: Int) -> Int {
+        collectionView.numberOfItems(inSection: section)
+    }
+    var indexPathsForVisibleItems: [IndexPath] { collectionView.indexPathsForVisibleItems }
+    
+    func scrollToItem(at indexPath: IndexPath, at scrollPosition: UICollectionView.ScrollPosition, animated: Bool) {
+        collectionView.scrollToItem(at: indexPath, at: scrollPosition, animated: animated)
+    }
+    
+    func cellForItem(at indexPath: IndexPath) -> UIView? {
+        collectionView.cellForItem(at: indexPath)
+    }
+    
+    var presentationView: UIView { collectionView }
+    
+    func frameForItem(at indexPath: IndexPath) -> CGRect? {
+        collectionView.layoutAttributesForItem(at: indexPath)?.frame
+    }
+}
+
 /// The ViewerController takes care of displaying the user's photos and videos in full-screen. You can swipe right or left to navigate between them.
 public class ViewerController: UIViewController {
     static let domain = "com.3lvis.Viewer"
@@ -22,10 +61,10 @@ public class ViewerController: UIViewController {
 
     fileprivate var isSlideshow: Bool
 
-    public init(initialIndexPath: IndexPath, collectionView: UICollectionView, isSlideshow: Bool = false) {
+    public init(initialIndexPath: IndexPath, presentationSource: ViewerPresentationSource, isSlideshow: Bool = false) {
         self.initialIndexPath = initialIndexPath
         self.currentIndexPath = initialIndexPath
-        self.collectionView = collectionView
+        self.collectionView = presentationSource
 
         self.proposedCurrentIndexPath = initialIndexPath
         self.isSlideshow = isSlideshow
@@ -38,6 +77,12 @@ public class ViewerController: UIViewController {
         #if os(iOS)
             self.modalPresentationCapturesStatusBarAppearance = true
         #endif
+    }
+    
+    convenience init(initialIndexPath: IndexPath, collectionView: UICollectionView, isSlideshow: Bool = false) {
+        self.init(initialIndexPath:initialIndexPath,
+                  presentationSource: CollectionViewerPresentationSource(collectionView:collectionView),
+                  isSlideshow: isSlideshow)
     }
 
     fileprivate var proposedCurrentIndexPath: IndexPath
@@ -71,7 +116,7 @@ public class ViewerController: UIViewController {
     /**
      The UICollectionView to be used when dismissing and presenting elements
      */
-    fileprivate unowned var collectionView: UICollectionView
+    fileprivate var collectionView: ViewerPresentationSource
 
     /**
      CGPoint used for diffing the panning on an image
@@ -353,7 +398,7 @@ extension ViewerController {
         selectedCell.alpha = 0
 
         let presentedView = self.presentedViewCopy()
-        presentedView.frame = self.view.convert(selectedCell.frame, from: self.collectionView)
+        presentedView.frame = self.view.convert(selectedCell.frame, from: self.collectionView.presentationView)
         presentedView.image = image
 
         self.view.addSubview(self.overlayView)
@@ -441,7 +486,7 @@ extension ViewerController {
 
         guard let indexPath = viewableController.indexPath else { return }
 
-        guard let selectedCellFrame = self.collectionView.layoutAttributesForItem(at: indexPath)?.frame else { return }
+        guard let selectedCellFrame = self.collectionView.frameForItem(at: indexPath) else { return }
 
         let viewable = self.dataSource!.viewerController(self, viewableAt: indexPath)
         let image = viewable.placeholder
@@ -479,7 +524,7 @@ extension ViewerController {
             #if os(iOS)
                 self.setNeedsStatusBarAppearanceUpdate()
             #endif
-            presentedView.frame = self.view.convert(selectedCellFrame, from: self.collectionView)
+            presentedView.frame = self.view.convert(selectedCellFrame, from: self.collectionView.presentationView)
         }, completion: { _ in
             if let existingCell = self.collectionView.cellForItem(at: indexPath) {
                 existingCell.alpha = 1
@@ -577,7 +622,7 @@ extension ViewerController {
         }
     }
 
-    fileprivate func evaluateCellVisibility(collectionView: UICollectionView, currentIndexPath: IndexPath, upcomingIndexPath: IndexPath) {
+    fileprivate func evaluateCellVisibility(collectionView: ViewerPresentationSource, currentIndexPath: IndexPath, upcomingIndexPath: IndexPath) {
         if !collectionView.indexPathsForVisibleItems.contains(upcomingIndexPath) {
             var position: UICollectionView.ScrollPosition?
             if currentIndexPath.compareDirection(upcomingIndexPath) == .forward {
