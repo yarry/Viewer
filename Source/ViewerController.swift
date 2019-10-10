@@ -25,7 +25,7 @@ public protocol ViewerPresentationSource {
     
 }
 
-struct CollectionViewerPresentationSource: ViewerPresentationSource {
+struct CollectionViewPresentationSource: ViewerPresentationSource {
     private unowned var collectionView: UICollectionView
     init(collectionView: UICollectionView) {
         self.collectionView = collectionView
@@ -52,6 +52,20 @@ struct CollectionViewerPresentationSource: ViewerPresentationSource {
     }
 }
 
+struct ViewPresentationSource: ViewerPresentationSource {
+    private unowned var view: UIView
+    init(view: UIView) {
+        self.view = view
+    }
+    var numberOfSections: Int { 1 }
+    func numberOfItems(inSection section: Int) -> Int { 1 }
+    var indexPathsForVisibleItems: [IndexPath] { [IndexPath(row: 0, section: 0)] }
+    func scrollToItem(at indexPath: IndexPath, at scrollPosition: UICollectionView.ScrollPosition, animated: Bool) { }
+    func cellForItem(at indexPath: IndexPath) -> UIView? { view }
+    var presentationView: UIView { view }
+    func frameForItem(at indexPath: IndexPath) -> CGRect? { view.bounds }
+}
+
 /// The ViewerController takes care of displaying the user's photos and videos in full-screen. You can swipe right or left to navigate between them.
 public class ViewerController: UIViewController {
     static let domain = "com.3lvis.Viewer"
@@ -61,7 +75,7 @@ public class ViewerController: UIViewController {
 
     fileprivate var isSlideshow: Bool
 
-    public init(initialIndexPath: IndexPath, presentationSource: ViewerPresentationSource, isSlideshow: Bool = false) {
+    init(initialIndexPath: IndexPath, presentationSource: ViewerPresentationSource, isSlideshow: Bool = false) {
         self.initialIndexPath = initialIndexPath
         self.currentIndexPath = initialIndexPath
         self.collectionView = presentationSource
@@ -79,10 +93,16 @@ public class ViewerController: UIViewController {
         #endif
     }
     
-    convenience init(initialIndexPath: IndexPath, collectionView: UICollectionView, isSlideshow: Bool = false) {
+    public convenience init(initialIndexPath: IndexPath, collectionView: UICollectionView, isSlideshow: Bool = false) {
         self.init(initialIndexPath:initialIndexPath,
-                  presentationSource: CollectionViewerPresentationSource(collectionView:collectionView),
+                  presentationSource: CollectionViewPresentationSource(collectionView:collectionView),
                   isSlideshow: isSlideshow)
+    }
+    
+    public convenience init(sourceView: UIView) {
+        self.init(initialIndexPath: IndexPath(row: 0, section: 0),
+                  presentationSource: ViewPresentationSource(view: sourceView),
+                  isSlideshow: false)
     }
 
     fileprivate var proposedCurrentIndexPath: IndexPath
@@ -171,9 +191,13 @@ public class ViewerController: UIViewController {
     }()
 
     public var headerView: UIView?
+    
+    public var insetHeaderView: Bool = true
 
     public var footerView: UIView?
 
+    public var insetFooterView: Bool = true
+    
     private lazy var defaultHeaderView: DefaultHeaderView = {
         let defaultHeaderView = DefaultHeaderView()
         defaultHeaderView.delegate = self
@@ -414,10 +438,10 @@ extension ViewerController {
             self.view.addSubview(headerView)
 
             NSLayoutConstraint.activate([
-                headerView.topAnchor.constraint(equalTo: view.compatibleTopAnchor),
+                headerView.topAnchor.constraint(equalTo: insetHeaderView ? view.compatibleTopAnchor : view.topAnchor),
                 headerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                 headerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                headerView.heightAnchor.constraint(equalToConstant: ViewerController.HeaderHeight)
+                //headerView.heightAnchor.constraint(equalToConstant: ViewerController.HeaderHeight)
                 ])
         }
 
@@ -427,10 +451,10 @@ extension ViewerController {
             self.view.addSubview(footerView)
 
             NSLayoutConstraint.activate([
-                footerView.bottomAnchor.constraint(equalTo: view.compatibleBottomAnchor),
+                footerView.bottomAnchor.constraint(equalTo: insetFooterView ? view.compatibleBottomAnchor : view.bottomAnchor),
                 footerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                 footerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                footerView.heightAnchor.constraint(equalToConstant: ViewerController.FooterHeight)
+                //footerView.heightAnchor.constraint(equalToConstant: ViewerController.FooterHeight)
                 ])
         }
 
